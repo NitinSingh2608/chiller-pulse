@@ -5,6 +5,7 @@ import { TrendPanels } from './dashboard/TrendPanels';
 import { AlarmsSection } from './dashboard/AlarmsSection';
 import { ChatbotPanel } from './dashboard/ChatbotPanel';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface DashboardData {
   // Temperature readings
@@ -107,125 +108,135 @@ export const Dashboard = () => {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const { toast } = useToast();
 
-  // Mock data for demonstration - replace with actual API calls
-  const generateMockData = (): DashboardData => {
-    const now = new Date();
+  // Fetch latest HVAC data from Supabase
+  const fetchCurrentData = async (): Promise<DashboardData | null> => {
+    const { data, error } = await supabase
+      .from('gtpl_114_gt_140e_s7_1200')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.error('Error fetching current data:', error);
+      return null;
+    }
+
+    // Transform database record to match DashboardData interface
     return {
-      // Temperatures
-      T2_temp_mean: 22 + Math.random() * 5,
-      T1_temp_mean: 18 + Math.random() * 4,
-      T0_temp_mean: 12 + Math.random() * 3,
-      TH_temp_mean: 25 + Math.random() * 5,
+      T2_temp_mean: data.t2_temp_mean,
+      T1_temp_mean: data.t1_temp_mean,
+      T0_temp_mean: data.t0_temp_mean,
+      TH_temp_mean: data.th_temp_mean,
       
-      // Fallbacks
-      T2_1_ambient_temp: 22.1 + Math.random() * 5,
-      T2_2_ambient_temp: 21.9 + Math.random() * 5,
-      T1_1_cold_air_temp: 18.1 + Math.random() * 4,
-      T1_2_cold_air_temp: 17.9 + Math.random() * 4,
-      T0_1_air_outlet_temp: 12.1 + Math.random() * 3,
-      T0_2_air_outlet_temp: 11.9 + Math.random() * 3,
-      TH_1_supply_air_temp: 25.1 + Math.random() * 5,
-      TH_2_supply_air_temp: 24.9 + Math.random() * 5,
+      T2_1_ambient_temp: data.t2_1_ambient_temp,
+      T2_2_ambient_temp: data.t2_2_ambient_temp,
+      T1_1_cold_air_temp: data.t1_1_cold_air_temp,
+      T1_2_cold_air_temp: data.t1_2_cold_air_temp,
+      T0_1_air_outlet_temp: data.t0_1_air_outlet_temp,
+      T0_2_air_outlet_temp: data.t0_2_air_outlet_temp,
+      TH_1_supply_air_temp: data.th_1_supply_air_temp,
+      TH_2_supply_air_temp: data.th_2_supply_air_temp,
       
-      // Pressures
-      LP_value: 2.1 + Math.random() * 0.5,
-      HP_value: 12.5 + Math.random() * 2,
-      LP_set_point: 2.0,
-      HP_set_point: 12.0,
+      LP_value: data.lp_value,
+      HP_value: data.hp_value,
+      LP_set_point: data.lp_set_point,
+      HP_set_point: data.hp_set_point,
       
-      // Setpoints
-      T1_set_point: 18.0,
-      TH_T1_set_point: 25.0,
+      T1_set_point: data.t1_set_point,
+      TH_T1_set_point: data.th_t1_set_point,
       
-      // Actuators
-      Blower_speed: 60 + Math.random() * 20,
-      Cond_fan_speed: 70 + Math.random() * 15,
-      Hot_valve_speed: 45 + Math.random() * 25,
-      AHT_vale_speed: 30 + Math.random() * 20,
-      Heater_speed: 20 + Math.random() * 15,
+      Blower_speed: data.blower_speed,
+      Cond_fan_speed: data.cond_fan_speed,
+      Hot_valve_speed: data.hot_valve_speed,
+      AHT_vale_speed: data.aht_vale_speed,
+      Heater_speed: data.heater_speed,
       
-      // Digital states
-      Compressor_on_Q0_4: Math.random() > 0.3,
-      Blower_drive_on_Q0_0: Math.random() > 0.2,
-      Condenser_fan_drive_on_Q0_3: Math.random() > 0.3,
-      Hot_gas_valve_on_Q0_7: Math.random() > 0.5,
-      Heater_drive_on_Q0_2: Math.random() > 0.7,
+      Compressor_on_Q0_4: data.compressor_on_q0_4,
+      Blower_drive_on_Q0_0: data.blower_drive_on_q0_0,
+      Condenser_fan_drive_on_Q0_3: data.condenser_fan_drive_on_q0_3,
+      Hot_gas_valve_on_Q0_7: data.hot_gas_valve_on_q0_7,
+      Heater_drive_on_Q0_2: data.heater_drive_on_q0_2,
       
-      // Modes
-      Auto_mode: Math.random() > 0.5,
-      Manual_mode: Math.random() < 0.5,
-      Aeration_mode: Math.random() > 0.8,
-      Continuous_mode: Math.random() > 0.7,
+      Auto_mode: data.auto_mode,
+      Manual_mode: data.manual_mode,
+      Aeration_mode: data.aeration_mode,
+      Continuous_mode: data.continuous_mode,
       
-      // Health
-      Chiller_healthy_on_Q1_1: Math.random() > 0.1,
-      Chiller_Fault_on_Q2_0: Math.random() < 0.1,
-      Collective_Trouble_Signal_on_Q2_1: Math.random() < 0.1,
-      Fault_code: Math.random() < 0.1 ? Math.floor(Math.random() * 100) : 0,
+      Chiller_healthy_on_Q1_1: data.chiller_healthy_on_q1_1,
+      Chiller_Fault_on_Q2_0: data.chiller_fault_on_q2_0,
+      Collective_Trouble_Signal_on_Q2_1: data.collective_trouble_signal_on_q2_1,
+      Fault_code: data.fault_code ? parseInt(data.fault_code) : null,
       
-      // Faults
-      High_Pressure_Fault: Math.random() < 0.05,
-      Low_Pressure_Fault: Math.random() < 0.05,
-      Three_phase_monitor_fault: Math.random() < 0.02,
-      Compressor_motor_overheat: Math.random() < 0.02,
-      Anti_Freeze_Protection: Math.random() < 0.02,
-      TH_Temp_more_than_50C: Math.random() < 0.02,
+      High_Pressure_Fault: data.high_pressure_fault,
+      Low_Pressure_Fault: data.low_pressure_fault,
+      Three_phase_monitor_fault: data.three_phase_monitor_fault,
+      Compressor_motor_overheat: data.compressor_motor_overheat,
+      Anti_Freeze_Protection: data.anti_freeze_protection,
+      TH_Temp_more_than_50C: data.th_temp_more_than_50c,
       
-      // Sensor faults
-      Ambient_Temp_Sensor_T2_1_Open: Math.random() < 0.01,
-      Ambient_Temp_Sensor_T2_1_Short_Circuit: Math.random() < 0.01,
-      Cold_Air_Temp_Sensor_T1_1_Open: Math.random() < 0.01,
-      Cold_Air_Temp_Sensor_T1_1_Short_Circuit: Math.random() < 0.01,
+      Ambient_Temp_Sensor_T2_1_Open: data.ambient_temp_sensor_t2_1_open,
+      Ambient_Temp_Sensor_T2_1_Short_Circuit: data.ambient_temp_sensor_t2_1_short_circuit,
+      Cold_Air_Temp_Sensor_T1_1_Open: data.cold_air_temp_sensor_t1_1_open,
+      Cold_Air_Temp_Sensor_T1_1_Short_Circuit: data.cold_air_temp_sensor_t1_1_short_circuit,
       
-      // Runtime
-      Running_hours: 1248,
-      Running_time_hour: 12,
-      Running_time_minute: 34,
-      Compressor_timer: 156,
+      Running_hours: data.running_hours,
+      Running_time_hour: data.running_time_hour,
+      Running_time_minute: data.running_time_minute,
+      Compressor_timer: data.compressor_timer,
       
-      created_at: now.toISOString(),
+      created_at: data.created_at,
     };
   };
 
-  const generateTrendData = (): TrendData[] => {
-    const data: TrendData[] = [];
-    const now = new Date();
-    
-    for (let i = 24 * 60; i >= 0; i -= 5) { // 24 hours, every 5 minutes
-      const timestamp = new Date(now.getTime() - i * 60 * 1000);
-      data.push({
-        timestamp: timestamp.toISOString(),
-        ambient: 22 + Math.sin(i / 60) * 3 + Math.random() * 2,
-        return: 18 + Math.sin(i / 60) * 2 + Math.random() * 1.5,
-        supply: 12 + Math.sin(i / 60) * 1.5 + Math.random() * 1,
-        afterHeater: 25 + Math.sin(i / 60) * 2.5 + Math.random() * 2,
-        lpPressure: 2.1 + Math.sin(i / 120) * 0.3 + Math.random() * 0.2,
-        hpPressure: 12.5 + Math.sin(i / 120) * 1 + Math.random() * 0.5,
-        lpSetpoint: 2.0,
-        hpSetpoint: 12.0,
-        blowerSpeed: 65 + Math.sin(i / 90) * 10 + Math.random() * 5,
-        condFanSpeed: 70 + Math.sin(i / 100) * 8 + Math.random() * 4,
-        hotValveSpeed: 50 + Math.sin(i / 110) * 15 + Math.random() * 6,
-        heaterSpeed: 25 + Math.sin(i / 130) * 10 + Math.random() * 3,
-      });
+  // Fetch trend data for the last 24 hours
+  const fetchTrendData = async (): Promise<TrendData[]> => {
+    const twentyFourHoursAgo = new Date();
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+    const { data, error } = await supabase
+      .from('gtpl_114_gt_140e_s7_1200')
+      .select('*')
+      .gte('created_at', twentyFourHoursAgo.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(288); // Approximately every 5 minutes for 24 hours
+
+    if (error) {
+      console.error('Error fetching trend data:', error);
+      return [];
     }
-    
-    return data;
+
+    // Map database records to TrendData interface
+    return data.map(record => ({
+      timestamp: record.created_at,
+      ambient: record.t2_temp_mean || record.t2_1_ambient_temp || record.t2_2_ambient_temp,
+      return: record.t1_temp_mean || record.t1_1_cold_air_temp || record.t1_2_cold_air_temp,
+      supply: record.t0_temp_mean || record.t0_1_air_outlet_temp || record.t0_2_air_outlet_temp,
+      afterHeater: record.th_temp_mean || record.th_1_supply_air_temp || record.th_2_supply_air_temp,
+      lpPressure: record.lp_value,
+      hpPressure: record.hp_value,
+      lpSetpoint: record.lp_set_point,
+      hpSetpoint: record.hp_set_point,
+      blowerSpeed: record.blower_speed,
+      condFanSpeed: record.cond_fan_speed,
+      hotValveSpeed: record.hot_valve_speed,
+      heaterSpeed: record.heater_speed,
+    }));
   };
 
   const fetchData = async () => {
     try {
-      // In production, replace with actual API calls
-      // const response = await fetch('/api/dashboard/current');
-      // const data = await response.json();
+      // Fetch current data (latest record)
+      const current = await fetchCurrentData();
+      if (current) {
+        setCurrentData(current);
+        setLastUpdated(new Date());
+      }
       
-      const mockData = generateMockData();
-      setCurrentData(mockData);
-      setLastUpdated(new Date());
-      
+      // Fetch trend data only on initial load
       if (isLoading) {
-        const mockTrends = generateTrendData();
-        setTrendData(mockTrends);
+        const trends = await fetchTrendData();
+        setTrendData(trends);
         setIsLoading(false);
       }
     } catch (error) {
@@ -241,10 +252,25 @@ export const Dashboard = () => {
   useEffect(() => {
     fetchData();
     
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchData, 5000);
+    // Auto-refresh current data every 3 seconds for realtime feel
+    const interval = setInterval(async () => {
+      const current = await fetchCurrentData();
+      if (current) {
+        setCurrentData(current);
+        setLastUpdated(new Date());
+      }
+    }, 3000);
     
-    return () => clearInterval(interval);
+    // Refresh trend data every 5 minutes
+    const trendInterval = setInterval(async () => {
+      const trends = await fetchTrendData();
+      setTrendData(trends);
+    }, 300000);
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(trendInterval);
+    };
   }, []);
 
   if (isLoading) {
