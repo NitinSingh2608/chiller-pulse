@@ -99,12 +99,14 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-session-id': sessionId
+          'x-session-id': sessionId,
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
           message: messageText,
-          // session_id: sessionId,
           sessionId,
+          chatInput: messageText,
+          action: 'chat',
           user_id: 'dashboard_user',
           image_url: null,
           image_base64: null
@@ -115,50 +117,68 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      // Handle different response types from n8n
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+      
+      let data: any;
+      
+      if (responseText.trim()) {
+        try {
+          // Try to parse as JSON first
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.log('Response is not JSON, treating as plain text:', parseError);
+          // If it's not valid JSON, treat as plain text (direct n8n output)
+          data = responseText;
+        }
+      } else {
+        throw new Error('Empty response from webhook');
+      }
       
       let assistantContent = 'I apologize, but I received an unexpected response format.';
       let messageType: 'text' | 'data' | 'error' = 'text';
 
-      // if (data.success && data.data?.message) {
-      //   assistantContent = data.data.message;
-
-      if (typeof data === 'object' && data) {
+      // Handle different response formats from n8n
+      if (typeof data === 'string') {
+        // Direct string response from n8n (using {{ $json.output }})
+        assistantContent = data;
+      } else if (typeof data === 'object' && data) {
+        // JSON object response
         const parts: string[] = [];
 
-      if (typeof data.message === 'string' && data.message.trim()) {
-        parts.push(data.message.trim());
-      }
-      if (typeof data.table === 'string' && data.table.trim()) {
-        parts.push('\n' + data.table.trim());
+        // Check for various response properties
+        if (typeof data.output === 'string' && data.output.trim()) {
+          parts.push(data.output.trim());
+        } else if (typeof data.message === 'string' && data.message.trim()) {
+          parts.push(data.message.trim());
+        } else if (typeof data.sqloutput === 'string' && data.sqloutput.trim()) {
+          parts.push(data.sqloutput.trim());
+          messageType = 'data';
+        }
+
+        if (typeof data.table === 'string' && data.table.trim()) {
+          parts.push('\n' + data.table.trim());
+          messageType = 'data';
+        }
+
+        if (parts.length) {
+          assistantContent = parts.join('\n');
+        }
       }
 
-      if (parts.length) {
-        assistantContent = parts.join('\n');
+      // Detect if content looks like structured data (SQL results, JSON, etc.)
+      if (assistantContent.includes('|') || assistantContent.includes('SELECT') || 
+          (assistantContent.startsWith('{') && assistantContent.endsWith('}'))) {
+        messageType = 'data';
       }
-    }
-        
-        // Check if the response contains structured data (JSON)
-      //   try {
-      //     const parsedMessage = JSON.parse(data.data.message);
-      //     if (parsedMessage && typeof parsedMessage === 'object') {
-      //       messageType = 'data';
-      //       assistantContent = JSON.stringify(parsedMessage, null, 2);
-      //     }
-      //   } catch {
-      //     // Not JSON, treat as regular text
-      //     messageType = 'text';
-      //   }
-      // } else if (data.message) {
-      //   assistantContent = data.message;
-      // }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: assistantContent,
         timestamp: new Date(),
-        type: (assistantContent.startsWith('{') && assistantContent.endsWith('}')) ? 'data' : 'text'
+        type: messageType
       };
 
       setMessages(prev => [...prev, assistantMessage]);
