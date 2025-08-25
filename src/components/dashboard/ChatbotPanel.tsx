@@ -139,19 +139,19 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
     }
         
         // Check if the response contains structured data (JSON)
-        try {
-          const parsedMessage = JSON.parse(data.data.message);
-          if (parsedMessage && typeof parsedMessage === 'object') {
-            messageType = 'data';
-            assistantContent = JSON.stringify(parsedMessage, null, 2);
-          }
-        } catch {
-          // Not JSON, treat as regular text
-          messageType = 'text';
-        }
-      } else if (data.message) {
-        assistantContent = data.message;
-      }
+      //   try {
+      //     const parsedMessage = JSON.parse(data.data.message);
+      //     if (parsedMessage && typeof parsedMessage === 'object') {
+      //       messageType = 'data';
+      //       assistantContent = JSON.stringify(parsedMessage, null, 2);
+      //     }
+      //   } catch {
+      //     // Not JSON, treat as regular text
+      //     messageType = 'text';
+      //   }
+      // } else if (data.message) {
+      //   assistantContent = data.message;
+      // }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
