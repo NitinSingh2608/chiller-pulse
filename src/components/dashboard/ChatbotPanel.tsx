@@ -99,10 +99,11 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-session-id': sessionId
         },
         body: JSON.stringify({
           message: messageText,
-          session_id: sessionId,
+          // session_id: sessionId,
           user_id: 'dashboard_user',
           image_url: null,
           image_base64: null
@@ -118,8 +119,11 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
       let assistantContent = 'I apologize, but I received an unexpected response format.';
       let messageType: 'text' | 'data' | 'error' = 'text';
 
-      if (data.success && data.data?.message) {
-        assistantContent = data.data.message;
+      // if (data.success && data.data?.message) {
+      //   assistantContent = data.data.message;
+
+      if (data.message) {
+        assistantContent = data.message;
         
         // Check if the response contains structured data (JSON)
         try {
