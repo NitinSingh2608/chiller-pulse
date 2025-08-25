@@ -474,7 +474,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
 
     try {
       // Call the webhook endpoint
-      const response = await fetch('https://pretty-definitely-gazelle.ngrok-free.app/webhook/chatbot-url', {
+      const response = await fetch('https://c11f-102-0-12-209.ngrok-free.app/webhook/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
