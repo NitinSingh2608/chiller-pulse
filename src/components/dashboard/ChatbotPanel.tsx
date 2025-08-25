@@ -1,3 +1,348 @@
+// import { useState, useRef, useEffect } from 'react';
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// import { Button } from '@/components/ui/button';
+// import { Input } from '@/components/ui/input';
+// import { Badge } from '@/components/ui/badge';
+// import { ScrollArea } from '@/components/ui/scroll-area';
+// import { 
+//   MessageCircle, 
+//   Send, 
+//   X, 
+//   Bot, 
+//   User, 
+//   Loader2,
+//   Database,
+//   TrendingUp,
+//   AlertTriangle,
+//   Thermometer
+// } from 'lucide-react';
+// import { useToast } from '@/hooks/use-toast';
+
+// interface Message {
+//   id: string;
+//   role: 'user' | 'assistant';
+//   content: string;
+//   timestamp: Date;
+//   type?: 'text' | 'data' | 'error';
+// }
+
+// interface ChatbotPanelProps {
+//   isOpen: boolean;
+//   onToggle: () => void;
+// }
+
+// export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
+//   const [messages, setMessages] = useState<Message[]>([
+//     {
+//       id: '1',
+//       role: 'assistant',
+//       content: 'Hello! I\'m your HVAC system assistant. I can help you analyze data, explain system behavior, and provide insights about your chiller unit. What would you like to know?',
+//       timestamp: new Date(),
+//       type: 'text'
+//     }
+//   ]);
+//   const [input, setInput] = useState('');
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [sessionId] = useState(() => `session_${Date.now()}`);
+//   const messagesEndRef = useRef<HTMLDivElement>(null);
+//   const { toast } = useToast();
+
+//   const scrollToBottom = () => {
+//     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+//   };
+
+//   useEffect(() => {
+//     scrollToBottom();
+//   }, [messages]);
+
+//   const suggestedQueries = [
+//     {
+//       text: "Show last 1 hour LP/HP vs setpoints",
+//       icon: TrendingUp,
+//       category: "Analytics"
+//     },
+//     {
+//       text: "Why is ΔT low right now?",
+//       icon: Thermometer,
+//       category: "Diagnostics"
+//     },
+//     {
+//       text: "List active faults and probable causes",
+//       icon: AlertTriangle,
+//       category: "Alarms"
+//     },
+//     {
+//       text: "Trend blower speed and supply temp for 24h",
+//       icon: Database,
+//       category: "Data Query"
+//     }
+//   ];
+
+//   const sendMessage = async (messageText: string) => {
+//     if (!messageText.trim() || isLoading) return;
+
+//     const userMessage: Message = {
+//       id: Date.now().toString(),
+//       role: 'user',
+//       content: messageText.trim(),
+//       timestamp: new Date(),
+//       type: 'text'
+//     };
+
+//     setMessages(prev => [...prev, userMessage]);
+//     setInput('');
+//     setIsLoading(true);
+
+//     try {
+//       // Call the webhook endpoints
+//       const response = await fetch('https://pretty-definitely-gazelle.ngrok-free.app/webhook/chatbot-url', {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json',
+//           'x-session-id': sessionId
+//         },
+//         body: JSON.stringify({
+//           message: messageText,
+//           // session_id: sessionId,
+//           user_id: 'dashboard_user',
+//           image_url: null,
+//           image_base64: null
+//         })
+//       });
+
+//       if (!response.ok) {
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+
+//       const data = await response.json();
+      
+//       let assistantContent = 'I apologize, but I received an unexpected response format.';
+//       let messageType: 'text' | 'data' | 'error' = 'text';
+
+//       // if (data.success && data.data?.message) {
+//       //   assistantContent = data.data.message;
+
+//       if (data.message) {
+//         assistantContent = data.message;
+        
+//         // Check if the response contains structured data (JSON)
+//         try {
+//           const parsedMessage = JSON.parse(data.data.message);
+//           if (parsedMessage && typeof parsedMessage === 'object') {
+//             messageType = 'data';
+//             assistantContent = JSON.stringify(parsedMessage, null, 2);
+//           }
+//         } catch {
+//           // Not JSON, treat as regular text
+//           messageType = 'text';
+//         }
+//       } else if (data.message) {
+//         assistantContent = data.message;
+//       }
+
+//       const assistantMessage: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: assistantContent,
+//         timestamp: new Date(),
+//         type: messageType
+//       };
+
+//       setMessages(prev => [...prev, assistantMessage]);
+
+//     } catch (error) {
+//       console.error('Error sending message:', error);
+      
+//       const errorMessage: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: 'I\'m experiencing connectivity issues. Please check that the n8n webhook is accessible and try again. For now, I can help explain the dashboard data you see.',
+//         timestamp: new Date(),
+//         type: 'error'
+//       };
+
+//       setMessages(prev => [...prev, errorMessage]);
+      
+//       toast({
+//         title: "Connection Error",
+//         description: "Unable to reach the AI assistant. Please try again.",
+//         variant: "destructive",
+//       });
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   const handleSubmit = (e: React.FormEvent) => {
+//     e.preventDefault();
+//     sendMessage(input);
+//   };
+
+//   const handleSuggestedQuery = (query: string) => {
+//     sendMessage(query);
+//   };
+
+//   const formatTime = (date: Date) => {
+//     return date.toLocaleTimeString('en-IN', {
+//       hour: '2-digit',
+//       minute: '2-digit',
+//       timeZone: 'Asia/Kolkata'
+//     });
+//   };
+
+//   const renderMessage = (message: Message) => {
+//     const isUser = message.role === 'user';
+    
+//     return (
+//       <div key={message.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+//         {!isUser && (
+//           <div className="flex-shrink-0">
+//             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+//               <Bot className="w-4 h-4 text-white" />
+//             </div>
+//           </div>
+//         )}
+        
+//         <div className={`max-w-[80%] ${isUser ? 'order-first' : ''}`}>
+//             <div className={`p-3 rounded-lg ${
+//             isUser 
+//               ? 'bg-blue-600 text-white ml-auto' 
+//               : message.type === 'error'
+//                 ? 'bg-red-50 border border-red-200 text-red-800'
+//                 : message.type === 'data'
+//                   ? 'bg-gray-50 border border-gray-200 text-gray-900'
+//                   : 'bg-gray-50 border border-gray-200 text-gray-900'
+//           }`}>
+//             {message.type === 'data' ? (
+//               <pre className="text-xs overflow-x-auto whitespace-pre-wrap font-mono">
+//                 {message.content}
+//               </pre>
+//             ) : (
+//               <p className="text-sm">{message.content}</p>
+//             )}
+//           </div>
+//           <div className="text-xs text-gray-500 mt-1 px-2">
+//             {formatTime(message.timestamp)}
+//           </div>
+//         </div>
+        
+//         {isUser && (
+//           <div className="flex-shrink-0">
+//             <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+//               <User className="w-4 h-4 text-gray-600" />
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//     );
+//   };
+
+//   return (
+//     <>
+//       {/* Chat Toggle Button */}
+//       <div className="fixed bottom-4 right-4 z-50">
+//         <Button
+//           onClick={onToggle}
+//           size="lg"
+//           className="rounded-full w-14 h-14 glow-primary"
+//         >
+//           {isOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+//         </Button>
+//       </div>
+
+//       {/* Chat Panel - Always Light Mode */}
+//       {isOpen && (
+//         <div className="fixed right-4 bottom-20 w-96 h-[600px] z-40 bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xl">
+//           <CardHeader className="pb-3 border-b border-gray-200">
+//             <CardTitle className="flex items-center text-gray-900">
+//               <Bot className="w-5 h-5 mr-2 text-blue-600" />
+//               HVAC Assistant
+//               <Badge className="ml-auto bg-green-100 text-green-800 hover:bg-green-100">
+//                 Online
+//               </Badge>
+//             </CardTitle>
+//           </CardHeader>
+          
+//           <CardContent className="p-0 flex flex-col h-[calc(100%-80px)]">
+//             {/* Messages Area */}
+//             <ScrollArea className="flex-1 p-4">
+//               {messages.map(renderMessage)}
+              
+//               {/* Suggested Queries */}
+//               {messages.length === 1 && (
+//                 <div className="mt-6">
+//                   <p className="text-sm text-gray-500 mb-3">Try asking:</p>
+//                   <div className="space-y-2">
+//                     {suggestedQueries.map((query, index) => {
+//                       const IconComponent = query.icon;
+//                       return (
+//                         <button
+//                           key={index}
+//                           onClick={() => handleSuggestedQuery(query.text)}
+//                           className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-200"
+//                         >
+//                           <div className="flex items-center gap-2">
+//                             <IconComponent className="w-4 h-4 text-blue-600" />
+//                             <span className="text-sm text-gray-900">{query.text}</span>
+//                           </div>
+//                           <Badge variant="outline" className="text-xs mt-1 border-gray-300 text-gray-600">
+//                             {query.category}
+//                           </Badge>
+//                         </button>
+//                       );
+//                     })}
+//                   </div>
+//                 </div>
+//               )}
+              
+//               {isLoading && (
+//                 <div className="flex items-center gap-3 mb-4">
+//                   <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+//                     <Bot className="w-4 h-4 text-white" />
+//                   </div>
+//                   <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+//                     <div className="flex items-center gap-2">
+//                       <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+//                       <span className="text-sm text-gray-900">Analyzing...</span>
+//                     </div>
+//                   </div>
+//                 </div>
+//               )}
+              
+//               <div ref={messagesEndRef} />
+//             </ScrollArea>
+            
+//             {/* Input Area */}
+//             <div className="p-4 border-t border-gray-200 bg-white">
+//               <form onSubmit={handleSubmit} className="flex gap-2">
+//                 <Input
+//                   value={input}
+//                   onChange={(e) => setInput(e.target.value)}
+//                   placeholder="Ask about system performance..."
+//                   disabled={isLoading}
+//                   className="flex-1 border-gray-300 bg-white text-gray-900 placeholder:text-gray-500"
+//                 />
+//                 <Button 
+//                   type="submit" 
+//                   size="icon"
+//                   disabled={isLoading || !input.trim()}
+//                   className="bg-blue-600 hover:bg-blue-700 text-white"
+//                 >
+//                   <Send className="w-4 h-4" />
+//                 </Button>
+//               </form>
+//               <p className="text-xs text-gray-500 mt-2">
+//                 Connected to n8n AI agent for real-time analysis
+//               </p>
+//             </div>
+//           </CardContent>
+//         </div>
+//       )}
+//     </>
+//   );
+// };
+
+
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -94,17 +439,20 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
     setIsLoading(true);
 
     try {
-      // Call the webhook endpoints
+      // Call the webhook endpoint
       const response = await fetch('https://pretty-definitely-gazelle.ngrok-free.app/webhook/chatbot-url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-session-id': sessionId
+          'x-session-id': sessionId,
+          'ngrok-skip-browser-warning': 'true' // Skip ngrok warning page
         },
         body: JSON.stringify({
           message: messageText,
-          // session_id: sessionId,
+          sessionId: sessionId,
           user_id: 'dashboard_user',
+          chatInput: messageText, // Alternative field name for n8n webhook
+          action: 'chat',
           image_url: null,
           image_base64: null
         })
@@ -115,29 +463,37 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
       }
 
       const data = await response.json();
+      console.log('Webhook response:', data); // Debug log
       
       let assistantContent = 'I apologize, but I received an unexpected response format.';
       let messageType: 'text' | 'data' | 'error' = 'text';
 
-      // if (data.success && data.data?.message) {
-      //   assistantContent = data.data.message;
-
-      if (data.message) {
-        assistantContent = data.message;
-        
-        // Check if the response contains structured data (JSON)
-        try {
-          const parsedMessage = JSON.parse(data.data.message);
-          if (parsedMessage && typeof parsedMessage === 'object') {
-            messageType = 'data';
-            assistantContent = JSON.stringify(parsedMessage, null, 2);
-          }
-        } catch {
-          // Not JSON, treat as regular text
-          messageType = 'text';
-        }
+      // Handle different response formats from n8n workflow
+      if (data.output) {
+        // If n8n returns formatted output (from your final node)
+        assistantContent = data.output;
+        messageType = 'text';
       } else if (data.message) {
+        // Direct message field
         assistantContent = data.message;
+        messageType = 'text';
+      } else if (data.sqloutput) {
+        // If SQL results are returned
+        assistantContent = data.sqloutput;
+        messageType = 'data';
+      } else if (typeof data === 'string') {
+        // If the entire response is a string
+        assistantContent = data;
+        messageType = 'text';
+      } else if (data.error) {
+        // Error handling
+        assistantContent = `Error: ${data.error}`;
+        messageType = 'error';
+      }
+
+      // Check if content looks like SQL results or JSON data
+      if (assistantContent.includes('|') && assistantContent.includes('\n')) {
+        messageType = 'data';
       }
 
       const assistantMessage: Message = {
@@ -204,7 +560,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         )}
         
         <div className={`max-w-[80%] ${isUser ? 'order-first' : ''}`}>
-            <div className={`p-3 rounded-lg ${
+          <div className={`p-3 rounded-lg ${
             isUser 
               ? 'bg-blue-600 text-white ml-auto' 
               : message.type === 'error'
@@ -218,7 +574,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
                 {message.content}
               </pre>
             ) : (
-              <p className="text-sm">{message.content}</p>
+              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
             )}
           </div>
           <div className="text-xs text-gray-500 mt-1 px-2">
@@ -244,7 +600,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         <Button
           onClick={onToggle}
           size="lg"
-          className="rounded-full w-14 h-14 glow-primary"
+          className="rounded-full w-14 h-14 shadow-lg"
         >
           {isOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
         </Button>
@@ -314,23 +670,29 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
             
             {/* Input Area */}
             <div className="p-4 border-t border-gray-200 bg-white">
-              <form onSubmit={handleSubmit} className="flex gap-2">
+              <div className="flex gap-2">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about system performance..."
                   disabled={isLoading}
                   className="flex-1 border-gray-300 bg-white text-gray-900 placeholder:text-gray-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage(input);
+                    }
+                  }}
                 />
                 <Button 
-                  type="submit" 
+                  onClick={() => sendMessage(input)}
                   size="icon"
                   disabled={isLoading || !input.trim()}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
-              </form>
+              </div>
               <p className="text-xs text-gray-500 mt-2">
                 Connected to n8n AI agent for real-time analysis
               </p>
