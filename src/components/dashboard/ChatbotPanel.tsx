@@ -104,6 +104,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         body: JSON.stringify({
           message: messageText,
           // session_id: sessionId,
+          sessionId,
           user_id: 'dashboard_user',
           image_url: null,
           image_base64: null
@@ -122,8 +123,20 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
       // if (data.success && data.data?.message) {
       //   assistantContent = data.data.message;
 
-      if (data.message) {
-        assistantContent = data.message;
+      if (typeof data === 'object' && data) {
+        const parts: string[] = [];
+
+      if (typeof data.message === 'string' && data.message.trim()) {
+        parts.push(data.message.trim());
+      }
+      if (typeof data.table === 'string' && data.table.trim()) {
+        parts.push('\n' + data.table.trim());
+      }
+
+      if (parts.length) {
+        assistantContent = parts.join('\n');
+      }
+    }
         
         // Check if the response contains structured data (JSON)
         try {
@@ -145,7 +158,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         role: 'assistant',
         content: assistantContent,
         timestamp: new Date(),
-        type: messageType
+        type: (assistantContent.startsWith('{') && assistantContent.endsWith('}')) ? 'data' : 'text'
       };
 
       setMessages(prev => [...prev, assistantMessage]);
