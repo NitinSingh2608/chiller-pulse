@@ -376,6 +376,15 @@ interface ChatbotPanelProps {
   onToggle: () => void;
 }
 
+interface N8nResponse {
+  output?: string;
+  message?: string;
+  sqloutput?: string;
+  error?: string;
+  data?: any;
+  success?: boolean;
+}
+
 export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -391,6 +400,31 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Helper method to detect content type
+  const detectContentType = (content: string): 'text' | 'data' | 'error' => {
+    if (!content) return 'text';
+    
+    // Check for SQL table-like format
+    if (content.includes('|') && content.includes('\n') && content.split('\n').length > 2) {
+      return 'data';
+    }
+    
+    // Check for JSON format
+    try {
+      JSON.parse(content);
+      return 'data';
+    } catch {
+      // Not JSON, continue checks
+    }
+    
+    // Check for error indicators
+    if (content.toLowerCase().includes('error') || content.toLowerCase().includes('failed')) {
+      return 'error';
+    }
+    
+    return 'text';
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -445,56 +479,69 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
         headers: {
           'Content-Type': 'application/json',
           'x-session-id': sessionId,
-          'ngrok-skip-browser-warning': 'true' // Skip ngrok warning page
+          'ngrok-skip-browser-warning': 'true',
+          'User-Agent': 'HVAC-Dashboard/1.0'
         },
         body: JSON.stringify({
           message: messageText,
           sessionId: sessionId,
           user_id: 'dashboard_user',
-          chatInput: messageText, // Alternative field name for n8n webhook
+          chatInput: messageText,
           action: 'chat',
+          timestamp: new Date().toISOString(),
           image_url: null,
           image_base64: null
         })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log('Webhook response:', data); // Debug log
+      const rawData = await response.text();
+      console.log('Raw webhook response:', rawData);
+      
+      let data: N8nResponse;
+      try {
+        data = JSON.parse(rawData);
+      } catch (parseError) {
+        // If response is not JSON, treat as plain text
+        data = { message: rawData };
+      }
+      
+      console.log('Parsed webhook data:', data);
       
       let assistantContent = 'I apologize, but I received an unexpected response format.';
       let messageType: 'text' | 'data' | 'error' = 'text';
 
-      // Handle different response formats from n8n workflow
-      if (data.output) {
-        // If n8n returns formatted output (from your final node)
-        assistantContent = data.output;
-        messageType = 'text';
+      // Enhanced response parsing with fallbacks
+      if (data.error) {
+        assistantContent = `Error: ${String(data.error)}`;
+        messageType = 'error';
+      } else if (data.output) {
+        assistantContent = String(data.output).trim();
+        messageType = detectContentType(assistantContent);
       } else if (data.message) {
-        // Direct message field
-        assistantContent = data.message;
-        messageType = 'text';
+        assistantContent = String(data.message).trim();
+        messageType = detectContentType(assistantContent);
       } else if (data.sqloutput) {
-        // If SQL results are returned
-        assistantContent = data.sqloutput;
+        assistantContent = String(data.sqloutput).trim();
         messageType = 'data';
-      } else if (typeof data === 'string') {
-        // If the entire response is a string
-        assistantContent = data;
-        messageType = 'text';
-      } else if (data.error) {
-        // Error handling
-        assistantContent = `Error: ${data.error}`;
+      } else if (data.data && typeof data.data === 'object' && data.data.message) {
+        assistantContent = String(data.data.message).trim();
+        messageType = detectContentType(assistantContent);
+      } else if (typeof rawData === 'string' && rawData.trim()) {
+        assistantContent = rawData.trim();
+        messageType = detectContentType(assistantContent);
+      }
+
+      // Validate content is not empty
+      if (!assistantContent || assistantContent === 'undefined' || assistantContent === 'null') {
+        assistantContent = 'I received an empty response. Please try rephrasing your question.';
         messageType = 'error';
       }
 
-      // Check if content looks like SQL results or JSON data
-      if (assistantContent.includes('|') && assistantContent.includes('\n')) {
-        messageType = 'data';
-      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -528,6 +575,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
       setIsLoading(false);
     }
   };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -574,7 +622,7 @@ export const ChatbotPanel = ({ isOpen, onToggle }: ChatbotPanelProps) => {
                 {message.content}
               </pre>
             ) : (
-              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
             )}
           </div>
           <div className="text-xs text-gray-500 mt-1 px-2">
